@@ -120,11 +120,13 @@ The graphical model uses Taylor expansion approximations to approximate nonlinea
 
 **Sample efficiency comparison:**
 
+
 | Method | Samples for MSE=0.1 | Samples for MSE=0.05 |
 |--------|---------------------|----------------------|
 | Pure GNN (no physics) | ~5,000 | ~90,000 |
 | Hybrid (weak physics, J=1) | ~500 | ~5,000 |
 | Hybrid (stronger physics, J=5) | ~400 | ~4,000 |
+
 
 The hybrid approach achieves 10-20× sample efficiency improvement over pure neural learning through incorporation of physics priors.
 
@@ -141,12 +143,14 @@ The superior performance indicates that residual error structure remains simpler
 
 The Michigan NCLT dataset provides real-world validation. A Segway robot with GPS traverses the University of Michigan campus, collecting noisy GPS signals and ground truth positions.
 
+
 | Method | Mean Squared Error |
 |--------|-------------------|
 | Raw GPS observations | 3.4974 |
 | Classical Kalman Smoother | 3.0099 |
 | Pure GNN | 1.7929 |
 | Hybrid model | **1.4109** |
+
 
 The hybrid approach achieves a 53% reduction in error relative to the Kalman filter and 21% improvement over pure neural learning. This validates the approach on real-world data where model mismatch is inevitable.
 
