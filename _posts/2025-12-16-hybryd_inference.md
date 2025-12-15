@@ -1,0 +1,249 @@
+---
+layout: post
+title: The Best of Both Worlds: Hybrid Inference Combining Physics and Deep Learning
+---
+
+*A NeurIPS 2019 Paper by Garcia Satorras, Akata, and Welling*
+
+## Introduction: The Fundamental Trade-off in Machine Learning
+
+Machine learning has long been divided by a fundamental tension: **classical methods vs. modern neural networks**.
+
+On one side, **graphical models** like the Kalman filter encode our *prior knowledge* about how the world works. We build them from physics equations, domain expertise, and intuition. They excel when data is scarce because they leverage this inductive bias.
+
+On the other side, **neural networks** learn patterns directly from data. They're incredibly flexible and can capture complex, nonlinear relationships that no physicist could write down. But they demand *lots of data*.
+
+What if we could have both?
+
+This is the question tackled by a remarkable 2019 NeurIPS paper: **"Combining Generative and Discriminative Models for Hybrid Inference."** The authors propose a hybrid algorithm that gracefully switches between classical inference and learned inference depending on how much data is available.
+
+The result? A method that **outperforms both approaches in isolation** across all data regimes.
+
+---
+
+## The Problem: When Models Fail
+
+Imagine you're tracking a rocket in flight. You have an excellent physics model that describes its dynamics—Newton's laws, aerodynamics, everything. You also have noisy GPS measurements.
+
+A **Kalman filter** combines these beautifully. It uses your physics model and the measurements to estimate the true trajectory. When the model matches reality perfectly, it's optimal.
+
+But what if reality is more complex? What if there are wind gusts, manufacturing asymmetries, or fuel distribution effects that your model doesn't capture? Your Kalman filter will be suboptimal.
+
+The traditional solution: **replace the entire model with a neural network** trained on data. Given enough data and training time, a neural network can learn complex dynamics. But with only 100 training samples? It'll fail miserably.
+
+**The hybrid approach asks: what if we keep the physics model but learn only the *mistakes*?**
+
+---
+
+## Core Idea: Residual Learning in Inference
+
+The key insight is deceptively simple. Instead of the neural network learning the full dynamics from scratch:
+
+$$\hat{x}_k^{\text{NN}} = f_{\text{NN}}(y)$$
+
+We have it learn only the residual correction to our physics model:
+
+$$\hat{x}_k^{\text{Hybrid}} = \hat{x}_k^{\text{Physics}} + \epsilon_k$$
+
+where $\epsilon_k$ is a learned correction factor.
+
+**Why does this work?** The residuals have simpler structure than the raw signal. They're often nearly linear even when the original dynamics are chaotic. A neural network can learn simple patterns with far fewer examples.
+
+This principle extends beyond intuition—the experiments demonstrate it empirically across three diverse domains.
+
+---
+
+## Technical Framework: Message Passing and Graph Neural Networks
+
+The paper formulates inference as **iterative message passing** on a graphical model. Each node updates its estimate by receiving messages from its neighbors.
+
+### Graphical Model Messages (GM-Messages)
+
+The classical approach uses three types of messages:
+
+**From previous state:**
+$$\mu_{x_{k-1} \to x_k} = -Q^{-1}(x_k - F x_{k-1})$$
+
+**From next state (backward):**
+$$\mu_{x_{k+1} \to x_k} = F^T Q^{-1}(x_{k+1} - F x_k)$$
+
+**From observation:**
+$$\mu_{y_k \to x_k} = H^T R^{-1}(y_k - H x_k)$$
+
+These messages encode *physics knowledge*. They're derived from the generative model—in the Kalman filter case, from linear Gaussian assumptions.
+
+### Adding Learned Refinements with GNNs
+
+The hybrid model augments this with a **Graph Neural Network** that learns to refine these messages:
+
+1. **Compute GNN messages** using learnable functions $f_e$:
+$$m_{k,n}^{(i)} = z_{k,n} \cdot f_e(h_{x_k}^{(i)}, h_{v_n}^{(i)}, \mu_{v_n \to x_k})$$
+
+2. **Aggregate** incoming messages:
+$$U_k^{(i)} = \sum_{v_n \neq x_k} m_{k,n}^{(i)}$$
+
+3. **Update hidden states** with a GRU:
+$$h_{x_k}^{(i+1)} = \text{GRU}(U_k^{(i)}, h_{x_k}^{(i)})$$
+
+4. **Decode correction factor**:
+$$\epsilon_k^{(i+1)} = f_{\text{dec}}(h_{x_k}^{(i+1)})$$
+
+### The Unified Update Rule
+
+The algorithm repeats this for $N$ iterations. Each iteration improves the state estimate using both physics and learning:
+
+$$x_k^{(i+1)} = x_k^{(i)} + \gamma \left( M_k^{(i)} + \epsilon_k^{(i+1)} \right)$$
+
+The $M_k^{(i)}$ term is the classical message, $\epsilon_k^{(i+1)}$ is the learned correction. The algorithm **unrolls into a recurrent neural network**, effectively creating a "learned belief propagation" algorithm.
+
+---
+
+## Experimental Evidence
+
+The paper demonstrates the approach on three increasingly challenging problems:
+
+### Experiment 1: Linear Dynamics with Hidden Physics
+
+**Setup:** Trajectories generated by realistic physics (including air drag):
+$$\frac{\partial p}{\partial t} = v, \quad \frac{\partial v}{\partial t} = a - cv, \quad \frac{\partial a}{\partial t} = -\tau v$$
+
+But the graphical model only knows about simple uniform motion. There's a deliberate mismatch.
+
+**Results:**
+- With **100 samples**: Kalman filter wins (physics assumption is close enough)
+- With **1K-10K samples**: Hybrid dominates (learning fills the physics gap)
+- With **100K samples**: All methods converge, hybrid edges ahead
+
+The hybrid model elegantly trades off prior knowledge and data-driven learning.
+
+### Experiment 2: Lorenz Attractor (Chaotic Nonlinear System)
+
+This is the killer experiment. The Lorenz system is famously difficult—nonlinear, chaotic, and sensitive to initial conditions:
+
+$$\frac{dz_1}{dt} = 10(z_2 - z_1)$$
+$$\frac{dz_2}{dt} = z_1(28 - z_3) - z_2$$
+$$\frac{dz_3}{dt} = z_1 z_2 - \frac{8}{3}z_3$$
+
+The graphical model uses Taylor expansion approximations.
+
+**Stunning Results:**
+
+| Method | Samples for MSE=0.1 | Samples for MSE=0.05 |
+|--------|---------------------|----------------------|
+| Pure GNN | ~5,000 | ~90,000 |
+| Hybrid (weak physics, J=1) | ~500 | ~5,000 |
+| Hybrid (better physics, J=5) | ~400 | ~4,000 |
+
+**The hybrid model achieves 10-20× better sample efficiency** by leveraging even weak physics knowledge.
+
+When trained on 50K samples, the trajectories look dramatically different:
+
+- **Observations (baseline):** MSE = 0.2462 (very noisy)
+- **Pure GNN:** MSE = 0.0613 (struggles)
+- **E-Kalman Smoother:** MSE = 0.0372 (reasonable)
+- **Hybrid:** MSE = **0.0169** (60% better than both!)
+
+Why does the hybrid model excel here while pure GNN struggles? The residuals are nearly linear—the error of the E-Kalman smoother has simpler structure than the original chaotic dynamics. This is the residual learning principle in action.
+
+### Experiment 3: Real-World Robot Localization
+
+Using the Michigan NCLT dataset—a Segway robot with noisy GPS traversing campus—the hybrid model had to denoise real GPS signals:
+
+| Method | MSE |
+|--------|-----|
+| Raw observations | 3.4974 |
+| Kalman Smoother | 3.0099 |
+| Pure GNN | 1.7929 |
+| **Hybrid** | **1.4109** |
+
+The hybrid model achieves **53% improvement** over the classical Kalman filter and 21% over pure GNN. This validates the approach on real-world problems.
+
+---
+
+## Why This Matters: The Broader Vision
+
+This paper represents something important: **a rapprochement between classical machine learning and deep learning.**
+
+For decades, these were viewed as opposing paradigms:
+- *Classical methods* = handcrafted features, domain knowledge, interpretability
+- *Deep learning* = end-to-end learning, big data, black boxes
+
+But this paper shows they're **complementary**. Classical methods provide structure and efficiency. Deep learning adds flexibility and power. Together, they're stronger.
+
+The approach also has practical implications:
+
+1. **Sample Efficiency:** In domains where data is expensive (medical imaging, drug discovery), even weak physics knowledge can dramatically reduce data requirements.
+
+2. **Interpretability:** The graphical model backbone makes predictions more interpretable than pure neural networks.
+
+3. **Robustness:** Physics priors can help with out-of-distribution generalization.
+
+4. **Generality:** The framework extends beyond HMMs to arbitrary graphical model structures—factor graphs, Markov random fields, and beyond.
+
+---
+
+## Technical Details: How Training Works
+
+The algorithm is trained end-to-end using a weighted loss that emphasizes later iterations:
+
+$$\text{Loss}(\Theta) = \sum_{i=1}^{N} w_i \cdot L(y_{\text{true}}, \hat{x}^{(i)})$$
+
+where $w_i = i/N$ gives more weight to iterations 40-50 than 1-10.
+
+**Three-step training procedure:**
+
+1. **Initialize** the state to maximize the observation likelihood (e.g., set position = observed position)
+2. **Tune graphical model** hyperparameters as you would with a classical Kalman filter (mostly noise variances)
+3. **Train the GNN component** with backpropagation through the unrolled iterations
+
+Implementation details:
+- 50 inference iterations
+- GRU cells with 48 hidden features
+- Learning rate: $10^{-3}$ (Adam optimizer)
+- Step size: $\gamma = 0.005$
+
+The beauty is that cross-validation automatically balances the contribution of physics vs. learning.
+
+---
+
+## Limitations and Future Directions
+
+Like all papers, this has limitations:
+
+1. **Limited to sequential models** (HMMs in this work, though extensible in principle)
+2. **Cross-validation for balancing** may not scale to large systems (Bayesian approach would be more principled)
+3. **Computational cost** not thoroughly analyzed
+4. **Interpretability claims** need further development
+
+But the authors propose exciting future directions:
+
+- Apply to other generative models and graph structures
+- Learn the graphical model structure itself
+- Explore more principled Bayesian treatments of the inductive bias
+- Extend to discrete variables and other graphical model types
+
+---
+
+## Conclusion: The Wisdom of Hybrids
+
+This paper's central message is profound: **you don't have to choose between physics and learning.**
+
+Classical graphical models excel at encoding domain knowledge and scale beautifully to small data regimes. Neural networks excel at learning complex patterns from abundant data. The hybrid approach gets the best of both worlds.
+
+In a chaotic system, a 10-20× reduction in sample complexity is transformative. In real-world robotics, a 53% improvement in accuracy can mean the difference between a working system and a failure.
+
+As machine learning matures, we'll likely see more such hybrids—not replacing classical methods with neural networks, but augmenting classical methods with neural refinements. This paper shows how elegant and powerful that augmentation can be.
+
+**The future of machine learning might not be choosing sides, but combining them.**
+
+---
+
+## References & Further Reading
+
+- **Original Paper:** Victor Garcia Satorras, Zeynep Akata, Max Welling. "Combining Generative and Discriminative Models for Hybrid Inference." NeurIPS 2019.
+- **Code:** [Available on GitHub](https://github.com/vgsatorras/hybrid-inference)
+- **Related concepts:** Belief propagation, message passing, graph neural networks, amortized inference, meta-learning
+
+---
+
+*This post was inspired by careful reading of the NeurIPS 2019 paper. The experimental results, equations, and conceptual framework are drawn directly from the authors' work.*
