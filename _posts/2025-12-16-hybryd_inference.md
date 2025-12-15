@@ -3,6 +3,8 @@ layout: post
 title: The Best of Both Worlds: Hybrid Inference Combining Physics and Deep Learning
 ---
 
+# The Best of Both Worlds: Hybrid Inference Combining Physics and Deep Learning
+
 *A NeurIPS 2019 Paper by Garcia Satorras, Akata, and Welling*
 
 ## Introduction: The Fundamental Trade-off in Machine Learning
