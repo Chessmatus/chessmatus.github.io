@@ -122,7 +122,7 @@ The graphical model uses Taylor expansion approximations to approximate nonlinea
 
 
 | Method | Samples for MSE=0.1 | Samples for MSE=0.05 |
-|:--------|:---------------------:|----------------------:|
+|:--------:|:---------------------:|:----------------------:|
 | Pure GNN (no physics) | ~5,000 | ~90,000 |
 | Hybrid (weak physics, J=1) | ~500 | ~5,000 |
 | Hybrid (stronger physics, J=5) | ~400 | ~4,000 |
@@ -145,7 +145,7 @@ The Michigan NCLT dataset provides real-world validation. A Segway robot with GP
 
 
 | Method | Mean Squared Error |
-|:--------|-------------------:|
+|:--------:|:-------------------:|
 | Raw GPS observations | 3.4974 |
 | Classical Kalman Smoother | 3.0099 |
 | Pure GNN | 1.7929 |
